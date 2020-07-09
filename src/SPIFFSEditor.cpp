@@ -288,13 +288,13 @@ static bool matchWild(const char *pattern, const char *testee) {
       nxPat=pattern++; nxTst=testee;
       continue;
     }
-    if (nxPat){ 
+    if (nxPat){
       pattern = nxPat+1; testee=++nxTst;
       continue;
     }
     return false;
   }
-  while (*pattern=='*'){pattern++;}  
+  while (*pattern=='*'){pattern++;}
   return (*pattern == 0);
 }
 
@@ -431,6 +431,41 @@ bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request){
   return false;
 }
 
+String SPIFFSEditor::getFilesRecursive(const String& path, bool& isFirst)
+{
+  String result;
+  File dir = _fs.open(path);
+  File entry = dir.openNextFile();
+
+  while(entry){
+    if (true == isExcluded(_fs, entry.name())) {
+      /* Nothing to do */
+    } else if ((true == entry.isDirectory()) &&
+               (0 != strcmp("/", entry.name()))) {
+      result += getFilesRecursive(entry.name(), isFirst);
+    } else if (false == entry.isDirectory()) {
+      if (true == isFirst) {
+        isFirst = false;
+      } else {
+        result += ",";
+      }
+      result += "{\"type\":\"";
+      result += "file";
+      result += "\",\"name\":\"";
+      result += String(entry.name());
+      result += "\",\"size\":";
+      result += String(entry.size());
+      result += "}";
+    }
+
+    entry.close();
+    entry = dir.openNextFile();
+  }
+
+  dir.close();
+
+  return result;
+}
 
 void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
   if(_username.length() && _password.length() && !request->authenticate(_username.c_str(), _password.c_str()))
@@ -439,43 +474,9 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
   if(request->method() == HTTP_GET){
     if(request->hasParam("list")){
       String path = request->getParam("list")->value();
-#ifdef ESP32
-      File dir = _fs.open(path);
-#else
-      Dir dir = _fs.openDir(path);
-#endif
-      path = String();
       String output = "[";
-#ifdef ESP32
-      File entry = dir.openNextFile();
-      while(entry){
-#else
-      while(dir.next()){
-        fs::File entry = dir.openFile("r");
-#endif
-        if (isExcluded(_fs, entry.name())) {
-#ifdef ESP32
-            entry = dir.openNextFile();
-#endif
-            continue;
-        }
-        if (output != "[") output += ',';
-        output += "{\"type\":\"";
-        output += "file";
-        output += "\",\"name\":\"";
-        output += String(entry.name());
-        output += "\",\"size\":";
-        output += String(entry.size());
-        output += "}";
-#ifdef ESP32
-        entry = dir.openNextFile();
-#else
-        entry.close();
-#endif
-      }
-#ifdef ESP32
-      dir.close();
-#endif
+      bool isFirst = true;
+      output += getFilesRecursive(path, isFirst);
       output += "]";
       request->send(200, "application/json", output);
       output = String();
