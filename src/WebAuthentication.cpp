@@ -21,7 +21,13 @@
 #include "WebAuthentication.h"
 #include <libb64/cencode.h>
 #ifdef ESP32
+#include "mbedtls/version.h"
 #include "mbedtls/md5.h"
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+#define mbedtls_md5_starts  mbedtls_md5_starts_ret
+#define mbedtls_md5_update  mbedtls_md5_update_ret
+#define mbedtls_md5_finish  mbedtls_md5_finish_ret
+#endif
 #else
 #include "md5.h"
 #endif
@@ -71,9 +77,9 @@ static bool getMD5(uint8_t * data, uint16_t len, char * output){//33 bytes or mo
   memset(_buf, 0x00, 16);
 #ifdef ESP32
   mbedtls_md5_init(&_ctx);
-  mbedtls_md5_starts_ret(&_ctx);
-  mbedtls_md5_update_ret(&_ctx, data, len);
-  mbedtls_md5_finish_ret(&_ctx, _buf);
+  mbedtls_md5_starts(&_ctx);
+  mbedtls_md5_update(&_ctx, data, len);
+  mbedtls_md5_finish(&_ctx, _buf);
 #else
   MD5Init(&_ctx);
   MD5Update(&_ctx, data, len);

@@ -24,7 +24,13 @@
 #include <libb64/cencode.h>
 
 #ifndef ESP8266
+#include "mbedtls/version.h"
 #include "mbedtls/sha1.h"
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+#define mbedtls_md5_starts  mbedtls_md5_starts_ret
+#define mbedtls_md5_update  mbedtls_md5_update_ret
+#define mbedtls_md5_finish  mbedtls_md5_finish_ret
+#endif
 #else
 #include <Hash.h>
 #endif
@@ -832,7 +838,7 @@ void AsyncWebSocketClient::binary(AsyncWebSocketMessageBuffer * buffer)
 
 IPAddress AsyncWebSocketClient::remoteIP() {
     if(!_client) {
-        return IPAddress(0U);
+        return IPAddress((uint32_t)0U);
     }
     return _client->remoteIP();
 }
@@ -1291,12 +1297,13 @@ AsyncWebSocketResponse::AsyncWebSocketResponse(const String& key, AsyncWebSocket
 #ifdef ESP8266
   sha1(key + WS_STR_UUID, hash);
 #else
-  (String&)key += WS_STR_UUID;
+  String keyUuid = key;
+  keyUuid += WS_STR_UUID;
   mbedtls_sha1_context ctx;
   mbedtls_sha1_init(&ctx);
-  mbedtls_sha1_starts_ret(&ctx);
-  mbedtls_sha1_update_ret(&ctx, (const unsigned char*)key.c_str(), key.length());
-  mbedtls_sha1_finish_ret(&ctx, hash);
+  mbedtls_sha1_starts(&ctx);
+  mbedtls_sha1_update(&ctx, (const unsigned char*)keyUuid.c_str(), keyUuid.length());
+  mbedtls_sha1_finish(&ctx, hash);
   mbedtls_sha1_free(&ctx);
 #endif
   base64_encodestate _state;
